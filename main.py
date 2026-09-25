@@ -347,6 +347,10 @@ def log_activity(kind: str, message: str, level: str = "info", meta: dict | None
 SESSION_COOKIE = "vpn_session"
 # Admin sessions now expire and roll over instead of lasting a full year.
 SESSION_TTL = int(os.environ.get("SESSION_TTL_SECONDS", str(60 * 60 * 24 * 30)))  # 30 days default
+# Hard cap on the admin session table age: every SESSION_PURGE_INTERVAL_SECONDS all
+# sessions (including the current one) are wiped, forcing a fresh login. Default 2 days.
+SESSION_PURGE_INTERVAL = int(os.environ.get("SESSION_PURGE_INTERVAL_SECONDS", str(60 * 60 * 24 * 2)))
+_last_session_purge = 0.0
 
 def hash_password(pw: str) -> str:
     """PBKDF2 password hash; legacy SHA-256 hashes remain verifiable for migration."""
@@ -453,6 +457,7 @@ async def startup():
     )
     await load_state()
     ensure_reaper()
+    ensure_session_purge()
     ensure_backup_scheduler()
     log_activity("system", "سرور راه‌اندازی شد", "ok")
     logger.info(f"{APP_NAME} v{APP_VERSION} started on port {CONFIG['port']}")
@@ -810,13 +815,41 @@ async def _expiry_reaper():
         except Exception as e:
             logger.warning(f"reaper error: {e}")
 
+async def _session_purge():
+    """Wipe ALL admin sessions on a fixed interval (default every 2 days).
+
+    Unlike SESSION_TTL this clears the whole table, so an attacker who grabbed a
+    token loses it even if its own expiry is far in the future. The current
+    admin is logged out too and must sign in again.
+    """
+    global _last_session_purge
+    while True:
+        await asyncio.sleep(SESSION_PURGE_INTERVAL)
+        try:
+            async with SESSIONS_LOCK:
+                n = len(SESSIONS)
+                SESSIONS.clear()
+            _last_session_purge = time.time()
+            if n:
+                logger.info(f"session purge: cleared {n} admin session(s)")
+                log_activity("auth", f"پاک‌سازی دوره‌ای نشست‌ها ({n} مورد)", "warn")
+        except Exception as e:
+            logger.warning(f"session purge error: {e}")
+
 _reaper_started = False
+_session_purge_started = False
 
 def ensure_reaper():
     global _reaper_started
     if not _reaper_started:
         asyncio.create_task(_expiry_reaper())
         _reaper_started = True
+
+def ensure_session_purge():
+    global _session_purge_started
+    if not _session_purge_started:
+        asyncio.create_task(_session_purge())
+        _session_purge_started = True
 
 
 # ── Default link ──────────────────────────────────────────────────────────────

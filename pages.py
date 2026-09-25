@@ -217,6 +217,15 @@ a{color:inherit;text-decoration:none}
 .menu-btn:active{transform:scale(.94)}
 .menu-btn i{transition:transform .25s}
 .menu-btn.open i{transform:rotate(90deg)}
+/* ── Bottom nav (mobile) — persistent bar with logout ── */
+.bot-nav{display:none;position:fixed;right:0;left:0;bottom:0;height:58px;background:var(--bg2);border-top:1px solid var(--card-b);z-index:160;align-items:center;justify-content:space-around;padding:0 6px;padding-bottom:env(safe-area-inset-bottom,0px)}
+.bn-it{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--t3);font-size:9.5px;font-weight:600;cursor:pointer;padding:4px 2px;border-radius:9px;transition:all .15s;position:relative}
+.bn-it i{font-size:18px}
+.bn-it.on{color:var(--accent)}
+.bn-it:active{transform:scale(.93)}
+.bn-logout{flex:0 0 56px;color:var(--red-t);background:var(--red-bg);border:1px solid rgba(239,68,68,.18)}
+.bn-logout:active{transform:scale(.93)}
+.bn-logout i{font-size:17px}
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:190;backdrop-filter:blur(3px)}
 .overlay.show{display:block}
 .main{margin-right:var(--sidebar-w);flex:1;padding:28px 28px 60px;min-width:0;transition:margin .25s}
@@ -738,6 +747,11 @@ a{color:inherit;text-decoration:none}
   .main{padding:62px 12px 50px}
   .sub-grid,.cfg-grid,.conn-grid{grid-template-columns:1fr}
 }
+/* ── Bottom nav: show only on mobile ── */
+@media(max-width:1050px){
+  .bot-nav{display:flex}
+  .main{padding-bottom:78px}
+}
 /* VPN Panel — premium dark red / black visual system */
 
 
@@ -991,6 +1005,14 @@ a{color:inherit;text-decoration:none}
     <button class="logout-btn" id="logout-btn"><i class="ti ti-logout"></i> خروج</button>
   </div>
 </aside>
+<nav class="bot-nav" id="bot-nav">
+  <div class="bn-it on" data-pg="overview"><i class="ti ti-layout-dashboard"></i>داشبورد</div>
+  <div class="bn-it" data-pg="links"><i class="ti ti-link-plus"></i>کانفیگ‌ها</div>
+  <div class="bn-it" data-pg="subgroups"><i class="ti ti-folders"></i>ساب‌گروه</div>
+  <div class="bn-it" data-pg="traffic"><i class="ti ti-chart-area"></i>ترافیک</div>
+  <div class="bn-it" data-pg="settings"><i class="ti ti-settings"></i>تنظیمات</div>
+  <button class="bn-it bn-logout" id="bn-logout"><i class="ti ti-logout"></i>خروج</button>
+</nav>
 <main class="main">
 <section class="pg on" id="pg-overview">
 
@@ -1600,7 +1622,8 @@ async function delCat(id){
 }
 async function loadSessions(){
   try{
-    const d=await (await authF('/api/sessions')).json();
+    const r=await authF('/api/sessions');if(!r.ok)throw new Error('sessions failed');
+    const d=await r.json();
     const el=document.getElementById('sess-list');if(!el)return;
     const ss=d.sessions||[];
     if(!ss.length){el.innerHTML='<div class="empty"><i class="ti ti-login"></i><p>نشست فعلی شما است</p></div>';return}
@@ -1617,15 +1640,17 @@ async function loadSessions(){
             <b style="font-size:11px;color:var(--t3)">${toFa(s.expires_in_hours)} ساعت</b>
           </span>
         </div></div>`;}).join('');
+    el.dataset.loaded='1';
   }catch(e){}
 }
 async function revokeSessions(){
   if(!confirm('از همه‌ی دستگاه‌های دیگر خارج می‌شوید. ادامه؟'))return;
   try{
     const r=await authF('/api/security/revoke-other-sessions',{method:'POST'});
-    const d=await r.json();
-    toast((d.revoked||0)+' نشست لغو شد','ok');loadSessions();
-  }catch(e){toast('خطا','err')}
+    if(!r.ok)throw new Error('revoke failed');
+    const d=await r.json();if(!d||!d.ok)throw new Error('revoke rejected');
+    toast(toFa(d.revoked||0)+' نشست لغو شد','ok');loadSessions();
+  }catch(e){if(String(e).indexOf('unauthorized')<0)toast('خطا در لغو نشست‌ها','err')}
 }
 let telTimer=null;
 async function loadTelemetry(){
@@ -1728,6 +1753,7 @@ async function restoreBackupV2(input){
 async function checkAuth(){try{const r=await fetch('/api/me');const d=await r.json();if(!d.authenticated)location.href='/login';}catch(e){location.href='/login'}}
 async function logout(){try{await fetch('/api/logout',{method:'POST'})}catch(e){}location.href='/login'}
 document.getElementById('logout-btn').addEventListener('click',logout);
+document.getElementById('bn-logout').addEventListener('click',logout);
 async function authF(url,opts={}){
   const r=await fetch(url,opts);
   if(r.status===401){location.href='/login';throw new Error('unauthorized')}
@@ -1791,11 +1817,13 @@ document.getElementById('close-sb').addEventListener('click',closeSb);
 overlay.addEventListener('click',closeSb);
 function navTo(name){
   document.querySelectorAll('.nav-it').forEach(n=>n.classList.toggle('on',n.dataset.pg===name));
+  document.querySelectorAll('.bn-it[data-pg]').forEach(n=>n.classList.toggle('on',n.dataset.pg===name));
   document.querySelectorAll('.pg').forEach(p=>p.classList.toggle('on',p.id==='pg-'+name));
   const loaders={links:loadLinks,connections:loadConns,errors:loadErrs,subscriptions:loadSubsPage,subgroups:loadSubs,logs:loadActivity,categories:loadCats,settings:()=>{loadSetServer();loadSessions();loadTelemetry();startTelemetry();},testws:null};
   if(loaders[name])loaders[name]();
   closeSb();window.scrollTo({top:0,behavior:'smooth'});
 }
+document.querySelectorAll('.bn-it[data-pg]').forEach(el=>el.addEventListener('click',()=>navTo(el.dataset.pg)));
 document.querySelectorAll('.nav-it').forEach(el=>el.addEventListener('click',()=>navTo(el.dataset.pg)));
 function openModal(id){document.getElementById(id).classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
