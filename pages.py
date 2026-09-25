@@ -747,13 +747,13 @@ a{color:inherit;text-decoration:none}
 }
 @media(max-width:500px){
   .metrics{grid-template-columns:1fr}
-  .main{padding:62px 12px 50px}
+  .main{padding:62px 12px 30px}
   .sub-grid,.cfg-grid,.conn-grid{grid-template-columns:1fr}
 }
 /* ── Bottom nav: show only on mobile ── */
 @media(max-width:1050px){
-  .bot-nav{display:flex}
-  .main{padding-bottom:78px}
+  .bot-nav{display:none!important}
+  .main{padding-bottom:30px}
 }
 /* VPN Panel — premium dark red / black visual system */
 
