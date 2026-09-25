@@ -211,7 +211,10 @@ a{color:inherit;text-decoration:none}
 .mob-logo{width:28px;height:28px;border-radius:50%;overflow:hidden;box-shadow:0 0 8px rgba(16,185,129,.35)}
 .mob-logo img{width:100%;height:100%;object-fit:cover}
 .mob-title{color:var(--t1);font-size:13px;font-weight:700}
-.mob-right{display:flex;gap:6px}
+.mob-right{display:flex;gap:6px;align-items:center}
+.mob-logout{background:var(--red-bg);color:var(--red-t);border:1px solid rgba(239,68,68,.28);width:36px;height:36px;border-radius:10px;font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+.mob-logout:hover{background:rgba(239,68,68,.2)}
+.mob-logout:active{transform:scale(.94)}
 .menu-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;width:36px;height:36px;border-radius:10px;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(16,185,129,.35)}
 .menu-btn:hover{transform:scale(1.08);box-shadow:0 6px 18px rgba(16,185,129,.5)}
 .menu-btn:active{transform:scale(.94)}
@@ -976,6 +979,7 @@ a{color:inherit;text-decoration:none}
     <span class="mob-title">Panel Sloper</span>
   </div>
   <div class="mob-right">
+    <button class="mob-logout" id="mob-logout" title="خروج"><i class="ti ti-logout"></i></button>
     <button class="menu-btn" id="open-sb"><i class="ti ti-menu-2"></i></button>
   </div>
 </div>
@@ -1566,6 +1570,7 @@ a{color:inherit;text-decoration:none}
       <div class="log-timeline" id="sess-list">در حال بارگذاری...</div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-d btn-sm" onclick="revokeSessions()"><i class="ti ti-logout"></i> خروج از سایر دستگاه‌ها</button>
+        <button class="btn btn-d btn-sm" onclick="purgeAllSessions()"><i class="ti ti-trash"></i> حذف کل نشست‌ها</button>
       </div>
     </div>
   </div>
@@ -1651,6 +1656,16 @@ async function revokeSessions(){
     const d=await r.json();if(!d||!d.ok)throw new Error('revoke rejected');
     toast(toFa(d.revoked||0)+' نشست لغو شد','ok');loadSessions();
   }catch(e){if(String(e).indexOf('unauthorized')<0)toast('خطا در لغو نشست‌ها','err')}
+}
+async function purgeAllSessions(){
+  if(!confirm('کل نشست‌ها پاک می‌شوند و شما از همه دستگاه‌ها خارج می‌شوید. ادامه؟'))return;
+  try{
+    const r=await authF('/api/security/purge-all-sessions',{method:'POST'});
+    if(!r.ok)throw new Error('purge failed');
+    const d=await r.json();if(!d||!d.ok)throw new Error('purge rejected');
+    toast(toFa(d.revoked||0)+' نشست پاک شد','ok');
+    logout();
+  }catch(e){if(String(e).indexOf('unauthorized')<0){toast('خطا در پاک‌سازی نشست‌ها','err')}else{logout()}}
 }
 let telTimer=null;
 async function loadTelemetry(){
@@ -1754,6 +1769,7 @@ async function checkAuth(){try{const r=await fetch('/api/me');const d=await r.js
 async function logout(){try{await fetch('/api/logout',{method:'POST'})}catch(e){}location.href='/login'}
 document.getElementById('logout-btn').addEventListener('click',logout);
 document.getElementById('bn-logout').addEventListener('click',logout);
+document.getElementById('mob-logout').addEventListener('click',logout);
 async function authF(url,opts={}){
   const r=await fetch(url,opts);
   if(r.status===401){location.href='/login';throw new Error('unauthorized')}

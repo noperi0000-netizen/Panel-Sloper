@@ -1993,6 +1993,18 @@ async def revoke_other_sessions(request: Request, _=Depends(require_auth)):
     log_activity("auth", f"نشست‌های قبلی حساب لغو شد ({removed} مورد)", "warn")
     return {"ok": True, "revoked": removed}
 
+@app.post("/api/security/purge-all-sessions")
+async def purge_all_sessions(request: Request, _=Depends(require_auth)):
+    """Wipe EVERY admin session including the caller's own. This is a hard logout
+    for all devices — the requester must sign in again afterwards."""
+    async with SESSIONS_LOCK:
+        n = len(SESSIONS)
+        SESSIONS.clear()
+    resp = JSONResponse({"ok": True, "revoked": n})
+    resp.delete_cookie(SESSION_COOKIE, path="/")
+    log_activity("auth", f"کل نشست‌ها پاک شد ({n} مورد) — خروج کامل همه دستگاه‌ها", "warn")
+    return resp
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Categories (دسته‌بندی کانفیگ‌ها)
 # ══════════════════════════════════════════════════════════════════════════════
